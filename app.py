@@ -2,42 +2,30 @@ import cv2
 import numpy as np
 import mediapipe as mp
 from tensorflow.keras.models import load_model
-import os
 
 # --- CONFIGURAÇÕES INICIAIS ---
 
-# Inicializa o MediaPipe
+# 1. INICIALIZAR O MEDIAPIPE
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.5
+    static_image_mode=False,       # Processa um fluxo de vídeo
+    max_num_hands=1,               # Detecta apenas uma mão
+    min_detection_confidence=0.7,  # Confiança mínima para detecção
+    min_tracking_confidence=0.5    # Confiança mínima para rastreamento
 )
 
-# Verificação e carregamento do modelo e labels
-modelo_path = 'model_epoch_48_98.6_final.h5'
-labels_path = 'labels.txt'
-
-if not os.path.exists(modelo_path):
-    print(f"❌ Modelo '{modelo_path}' não encontrado.")
-    exit()
-
-if not os.path.exists(labels_path):
-    print(f"❌ Arquivo '{labels_path}' não encontrado.")
-    exit()
-
+# 2. CARREGAR O MODELO TREINADO
 try:
-    model = load_model(modelo_path)
-    with open(labels_path, 'r') as f:
-        labels = [line.strip() for line in f if line.strip()]
-    print(f"✅ Modelo carregado com sucesso! Labels: {len(labels)} classes.")
-except Exception as e:
-    print(f"Erro ao carregar modelo ou labels: {e}")
+    model = load_model('keras_model.h5')
+    # Lista de letras que o modelo consegue reconhecer (ordem é importante!)
+    labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'Y']
+except IOError:
+    print("Erro: Arquivo 'keras_model.h5' não encontrado.")
+    print("Por favor, baixe o modelo e coloque-o na mesma pasta do script.")
     exit()
 
-# Palavras do jogo
+# 3. CONFIGURAÇÕES DO JOGO
 palavras = ["BOLA", "GATO", "SOL", "VIDA"]
 palavra_atual_index = 0
 letra_atual_index = 0
@@ -45,19 +33,19 @@ pontos = 0
 feedback_visual = ""
 feedback_timer = 0
 
-# --- FUNÇÕES ---
+# --- FUNÇÕES AUXILIARES ---
 
 def preparar_imagem_para_modelo(hand_img):
-    """Prepara imagem da mão para o modelo (64x64, grayscale)."""
-    img_resized = cv2.resize(hand_img, (64, 64))
-    img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    img_normalized = img_gray / 255.0
-    img_reshaped = np.reshape(img_normalized, (1, 64, 64, 1))
+    """Redimensiona e formata a imagem da mão para o modelo."""
+    img_resized = cv2.resize(hand_img, (224, 224))
+    img_normalized = img_resized / 255.0
+    img_reshaped = np.reshape(img_normalized, (1, 224, 224, 3))
     return img_reshaped
 
 def desenhar_interface(frame, palavra, letra_idx, pred_letra, pontos, feedback):
+    """Desenha toda a informação do jogo na tela."""
     height, width, _ = frame.shape
-
+    
     palavra_display = ""
     for i, letra in enumerate(palavra):
         if i < letra_idx:
@@ -70,22 +58,18 @@ def desenhar_interface(frame, palavra, letra_idx, pred_letra, pontos, feedback):
     cv2.putText(frame, "SOLETRE: " + palavra_display, (50, 50), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2)
     cv2.putText(frame, f"PONTOS: {pontos}", (width - 250, 50), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2)
     cv2.putText(frame, f"Previsto: {pred_letra}", (50, height - 50), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 255), 2)
-
+    
     if feedback:
-        cv2.putText(frame, feedback, (width // 2 - 150, height // 2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
+        cv2.putText(frame, feedback, (width // 2 - 100, height // 2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
-# --- LOOP PRINCIPAL ---
+# --- LOOP PRINCIPAL DO JOGO ---
 
-cap = cv2.VideoCapture(1)
-
-if not cap.isOpened():
-    print("❌ Não foi possível acessar a câmera.")
-    exit()
+cap = cv2.VideoCapture(1)  # Usa a câmera de índice 1
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
-        print("❌ Frame não capturado.")
+        print("Falha ao capturar frame da câmera.")
         break
 
     frame = cv2.flip(frame, 1)
@@ -116,12 +100,12 @@ while cap.isOpened():
                 
                 confidence = np.max(prediction)
                 predicted_index = np.argmax(prediction)
-
-                if confidence >= 0.7:
-                    letra_prevista = labels[predicted_index]
-                    print(f"🔤 Letra prevista: {letra_prevista} (confiança: {confidence:.2f})")
-                else:
+                print(f"Predição: {labels[predicted_index]} com confiança {confidence:.2f}")
+                
+                if confidence < 0.6:
                     letra_prevista = ""
+                else:
+                    letra_prevista = labels[predicted_index]
 
                 palavra_alvo = palavras[palavra_atual_index]
                 letra_alvo = palavra_alvo[letra_atual_index]
@@ -152,7 +136,7 @@ while cap.isOpened():
     else:
         desenhar_interface(frame, palavras[palavra_atual_index], letra_atual_index, letra_prevista, pontos, "")
 
-    cv2.imshow('🧠 Herói do Alfabeto - Jogo em Libras', frame)
+    cv2.imshow('Herói do Alfabeto - Jogo em Libras', frame)
 
     if cv2.waitKey(5) & 0xFF == ord('q'):
         break

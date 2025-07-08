@@ -1,0 +1,7 @@
+venv
+.venv
+keras_model.h5
+keras.model.h5
+model_alphabet.h5
+model_epoch_48_98.6_final.h5
+
