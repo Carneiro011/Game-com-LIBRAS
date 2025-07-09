@@ -79,7 +79,7 @@ def desenhar_interface(frame, palavra, letra_idx, pred_letra, pontos, feedback):
 
 # --- LOOP PRINCIPAL DO JOGO ---
 
-cap = cv2.VideoCapture(0) # Inicia a câmera (0 é a câmera padrão)
+cap = cv2.VideoCapture(1) # Inicia a câmera (0 é a câmera padrão)
 
 while cap.isOpened():
     ret, frame = cap.read()
